@@ -1,6 +1,8 @@
+import os
 from typing import Tuple, Callable
 import re
 import copy
+import json
 from pathlib import Path
 from tqdm import tqdm
 
@@ -112,6 +114,17 @@ def clean_danetqa_response(response):
     return result
 
 
+def load_records(test_type, split):
+    split = split if split != 'validation' else 'val'
+    print(test_type, split)
+    with open(os.path.join(os.getcwd(), HF_DATASET, test_type, f'{split}.jsonl'), 'r', encoding='utf-8') as f:
+        json_list = list(f)
+    print(json_list[0])
+    records = [json.loads(record) for record in json_list]
+   
+    return records
+
+
 def predict_danetqa(
     split,
     predict_func,
@@ -124,7 +137,7 @@ def predict_danetqa(
     records = list(load_dataset(HF_DATASET, "danetqa", split=split))
     if nrows:
         records = records[:nrows]
-
+    print(records[0].keys())
     prompts = []
     for record in records:
         prompt = template.format(passage=record["passage"], question=record["question"])
@@ -195,6 +208,7 @@ def predict_terra(
     clean_func=clean_terra_response
 ):
     records = list(load_dataset(HF_DATASET, "terra", split=split))
+    # records = load_records('TERRa', split)
     if nrows:
         records = records[:nrows]
 
@@ -247,6 +261,7 @@ def predict_rwsd(
     clean_func: Callable = clean_rwsd_response
 ):
     records = list(load_dataset(HF_DATASET, "rwsd", split=split))
+    # records = load_records('RWSD', split)
     if nrows:
         records = records[:nrows]
 
@@ -494,6 +509,7 @@ def predict_lidirus(
     clean_func: Callable = clean_lidirus_response
 ):
     records = list(load_dataset(HF_DATASET, "lidirus", split="test"))
+    # records = load_records('LiDiRus', 'LiDiRus')
     if nrows:
         records = records[:nrows]
 
@@ -548,6 +564,7 @@ def predict_parus(
     template_effect: str = PARUS_EFFECT_PROMPT
 ):
     records = list(load_dataset(HF_DATASET, "parus", split=split))
+    # records = load_records('PARus', split)
     if nrows:
         records = records[:nrows]
 
@@ -639,6 +656,7 @@ def predict_rcb(
     clean_func: Callable = clean_rcb_response
 ):
     records = list(load_dataset(HF_DATASET, "rcb", split=split))
+    # records = load_records('RCB', split)
     if nrows:
         records = records[:nrows]
 
@@ -706,6 +724,7 @@ def predict_russe(
     clean_func: Callable = clean_russe_response
 ):
     records = list(load_dataset(HF_DATASET, "russe", split=split))
+    # records = load_records('RUSSE', split)
     if nrows:
         records = records[:nrows]
 
@@ -750,8 +769,17 @@ def main(
     debug: bool = False,
     tasks: Tuple[str] = ALL_TASKS
 ):
-    predictions_dir = Path(predictions_dir)
+    print(f'curent_path_1: {os.path.abspath(__file__)}')
+    print(f'curent_path_2: {os.getcwd()}')
 
+    os.chdir(os.getcwd())
+    predictions_dir = Path(predictions_dir)
+    os.makedirs(predictions_dir, exist_ok=True)
+    print(f'output path: {predictions_dir}')
+    print(f'metrics type: {split}')
+    print(f'tasks: {tasks}')
+    records = list(load_dataset(HF_DATASET, "rucos", split=split))
+    print(records[0])
     predict_short = None
     predict_long = None
 
@@ -759,6 +787,7 @@ def main(
         model, tokenizer, generation_config = load_saiga(model_name)
         generation_config.no_repeat_ngram_size = 64
         generation_config.temperature = 0.01
+        generation_config.do_sample = True
 
         def predict_saiga_zero_shot_bound(batch):
             generation_config.max_new_tokens = 256
@@ -816,6 +845,7 @@ def main(
         predict_short = predict_chatgpt_short
 
     if "danetqa" in tasks:
+        print('run DaNetQA')
         predict_danetqa(
             split=split,
             predict_func=predict_short,
@@ -824,6 +854,7 @@ def main(
         )
 
     if "terra" in tasks:
+        print('run TERRa')
         predict_terra(
             split=split,
             predict_func=predict_short,
@@ -832,6 +863,7 @@ def main(
         )
 
     if "rwsd" in tasks:
+        print('run RWSD')
         predict_rwsd(
             split=split,
             predict_func=predict_long,
@@ -840,6 +872,7 @@ def main(
         )
 
     if "rucos" in tasks:
+        print('run RuCoS')
         predict_rucos(
             split=split,
             predict_func=predict_long,
@@ -848,12 +881,14 @@ def main(
         )
 
     if "lidirus" in tasks:
+        print('run LiDiRus')
         predict_lidirus(
             predict_func=predict_short,
             output_path=predictions_dir / "LiDiRus.jsonl",
             nrows=nrows
         )
     if "parus" in tasks:
+        print('run PARus')
         predict_parus(
             split=split,
             predict_func=predict_long,
@@ -861,6 +896,7 @@ def main(
             nrows=nrows
         )
     if "rcb" in tasks:
+        print('run RCB')
         predict_rcb(
             split=split,
             predict_func=predict_long,
@@ -868,6 +904,7 @@ def main(
             nrows=nrows
         )
     if "russe" in tasks:
+        print('run RUSSE')
         predict_russe(
             split=split,
             predict_func=predict_short,
@@ -875,6 +912,7 @@ def main(
             nrows=nrows
         )
     if "muserc" in tasks:
+        print('run MuSeRC')
         predict_muserc(
             split=split,
             predict_func=predict_short,

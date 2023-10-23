@@ -12,19 +12,37 @@ def load_saiga(
     use_4bit: bool = False,
     torch_compile: bool = False,
     torch_dtype: str = None,
-    is_lora: bool = True,
+    is_lora: bool = False,
     use_flash_attention_2: bool = False
 ):
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=False)
-    generation_config = GenerationConfig.from_pretrained(model_name)
-
+    tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=False, padding_side='left')
+    generation_config = GenerationConfig.from_pretrained(model_name, do_sample=True)
+    print(f'use Lora: {is_lora}')
+    print(f'use 4 bit: {use_4bit}')
     if not is_lora:
-        model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            load_in_8bit=True,
-            device_map="auto"
-        )
+        if use_4bit:
+            model = AutoModelForCausalLM.from_pretrained(
+                model_name,
+                torch_dtype=torch_dtype,
+                load_in_4bit=True,
+                device_map="auto",
+                quantization_config=BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    llm_int8_threshold=6.0,
+                    llm_int8_has_fp16_weight=False,
+                    bnb_4bit_compute_dtype=torch_dtype,
+                    bnb_4bit_use_double_quant=True,
+                    bnb_4bit_quant_type="nf4"
+                ),
+                use_flash_attention_2=use_flash_attention_2
+            )
+        else:
+            model = AutoModelForCausalLM.from_pretrained(
+                model_name,
+                load_in_8bit=True,
+                device_map="auto"
+            )
         model.eval()
         return model, tokenizer, generation_config
 
